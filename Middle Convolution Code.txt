@@ -1,0 +1,97 @@
+/* Doing things w/ description of middle convolution in "On The Middle Convolution" from Dettweiler&Reiter (2018): */
+
+Prod := function(x);
+ return &*x; end function;
+
+function Get_N(W, l, Tuple);
+T := #Tuple;
+m := NumberOfRows(Tuple[1]);
+C := [];
+i := 0; 
+repeat i := i + 1; 
+I1 := ScalarMatrix(BaseRing(W), m*(i-1), 1);
+Zero1 := ZeroMatrix(BaseRing(W), m*(i-1), m*(T - (i-1)));
+J1 := HorizontalJoin(I1, Zero1);
+I2 := ScalarMatrix(BaseRing(W), m*(T-i), 1);
+Zero2 := ZeroMatrix(BaseRing(W), m*(T-i), m*i);
+J2 := HorizontalJoin(Zero2, I2);
+J := []; k := 1;
+while k lt i do;
+Insert(~J, k, l*(Tuple[k] -ScalarMatrix(BaseRing(W), m, 1))); /* putting l*(A_k -I) on left side of the row */
+k := k +1;
+end while;
+if k eq i then; 
+Insert(~J, k, l*Tuple[i]);
+k := k+1; 
+end if; 
+while k in [i+1..#Tuple] do;
+Insert(~J, k, Tuple[k] - ScalarMatrix(BaseRing(W), m, 1));
+k := k + 1; 
+end while; 
+D := VerticalJoin(<J1, HorizontalJoin(J), J2>);
+Insert(~C, i, Transpose(D)); /* After transpose, we should get the correct one, so should not need to take transpose before inputting in the Get_MC function */
+until i eq T;
+return C;
+end function;
+
+function Check_Inv(V, N, Set);
+if exists(i){i: i in [1..#N] | not forall(u){u: u in Set | u*N[i] in sub<V | Set>}} then; 
+return false, i, u; 
+else return true; 
+end if; 
+end function; 
+
+
+function Get_MC(V, K, L, Tuple);
+U1 := Complement(V, K + L);
+U, f := quo<V| K+ L>;
+C := []; 
+i := 0;
+d  := Dimension(U1);
+repeat i := i+1; 
+K := [];
+for j in [1..d] do;
+Insert(~K, j, Eltseq(f(U1.j*Tuple[i]))); 
+end for; 
+Insert(~C, i, Transpose(Matrix(K)));  /* taking transpose here means will get correct MC for product computations */
+until i eq #Tuple;
+return C;
+end function;
+
+function Compute_MC(W, l, Tup);
+T := #Tup;
+m := NumberOfRows(Tup[1]);
+R := MatrixRing(BaseRing(W), m); 
+Tuple := [R!Tup[1]]; /*Setting up sequence that is group matrices coerced into ring matrices */
+for i in [2..T] do; 
+Tuple := Tuple cat [R!Tup[i]];
+end for; 
+error if #Tuple ne #Tup, "Coercing matrices as ring elements went wrong \n";
+N := Get_N(W, l, Tuple);
+R := MatrixRing(BaseRing(W), m);
+I := R! 1;
+Diag := [Transpose(Tuple[1]) -I];  /*Setting up sequence we will then diagonal join to construct K */
+for i in [2..T] do;
+Diag := Diag cat [Transpose(Tuple[i]) -I]; 
+end for;
+K_Comp := DiagonalJoin(Diag);
+K := Kernel(K_Comp);
+V := KSpace(BaseRing(W), NumberOfRows(N[1]));
+error if not Check_Inv(V, N, Basis(K)), "Subspace K is not invariant under action of N \n";
+For_L := [Transpose(Prod(Tuple[2..T]))];
+for i in [3..T] do; 
+For_L := For_L cat [Transpose(Prod(Tuple[i..T]))]; 
+end for; 
+For_L := For_L cat [I]; 
+printf "For_L looks like %o \n", For_L;
+error if #For_L ne T, "For_L is not the right size \n";
+B := {&cat[Eltseq(v*For_L[i]) : i in [1..T]] : v in Basis(Kernel(l*Transpose(Prod(Tuple)) - I))}; 
+printf "B is: %o \n", B;
+L := sub<V | B>;
+error if not Check_Inv(V, N, Basis(L)), "Subspace L is not invariant under action of N \n";
+MC := Get_MC(V, K, L, N);
+if exists(i){i: i in [1..T] | Determinant(MC[i]) ne 1} then; 
+print "MC is not in SL \n";
+end if; 
+return MC;
+end function;
