@@ -1,0 +1,298 @@
+Prod := function(x);
+ return &*x; end function;
+
+function Into_SL(Char, Tup);
+error if #Char ne #Tup + 1, "Character tuple is not one more than the matrix tuple";
+error if Prod(Char) ne 1, "Character tuple does not multiply to 1";
+return [Char[i]*Tup[i]: i in [1..#Tup]] cat [Char[#Char]*Prod(Tup)^-1];
+end function;
+
+function B1(Tup);
+error if #Tup lt 2, "Tuple is shorter than length 2";
+TupCopy := Tup;
+A1 := Tup[1]; A2 := Tup[2];
+TupCopy[1] := A1*A2*(A1)^-1;
+TupCopy[2] := A1;
+return TupCopy;
+end function;
+
+function B2(Tup);
+error if #Tup le 2, "Tuple is shorter than length 3";
+TupCopy := Tup;
+A2 := Tup[2]; A3 := Tup[3];
+TupCopy[2] := A2*A3*(A2)^-1;
+TupCopy[3] := A2;
+return TupCopy;
+end function;
+
+function B3(Tup);
+error if #Tup le 3, "Tuple is shorter than length 4";
+TupCopy := Tup;
+A3 := Tup[3]; A4 := Tup[4];
+TupCopy[3] := A3*A4*(A3)^-1;
+TupCopy[4] := A3;
+return TupCopy;
+end function;
+
+function B4(Tup);
+error if #Tup le 4, "Tuple is shorter than length 5";
+TupCopy := Tup;
+A4 := Tup[4]; A5 := Tup[5];
+TupCopy[4] := A4*A5*(A4)^-1;
+TupCopy[5] := A4;
+return TupCopy;
+end function;
+
+/* Should be accurate for any n-th root for n < 50000 */
+function Res(Tup);
+return [BestApproximation(Arccos(Tup[i]/2)/Pi(RealField(30)), 50000) : i in [1..#Tup]];
+end function;
+
+
+/* CODE FOR COMPARING OUR MCG-FINITE 4-TUPLES TO THAT OF LISOVY-TYKHYY(2014) AND TYKHYY(2022) */
+
+
+/* omega parameters from Lisovy-Tykhyy paper (2014) */
+function AltSig(Tup);
+error if #Tup ne 4, "Tuple is not length 4";
+error if exists(i){i: i in [1..#Tup] | Determinant(Tup[i]) ne 1}, "Tuple is not in SL \o", Tup;
+A1 := Tup[1]; A2 := Tup[2]; A3 := Tup[3]; A4 := Tup[4];
+return [Trace(A1)*Trace(A4) + Trace(A2)*Trace(A3), Trace(A2)*Trace(A4) + Trace(A1)*Trace(A3), Trace(A3)*Trace(A4) + Trace(A2)*Trace(A1), 4-(Trace(A1)^2 + Trace(A2)^2 + Trace(A3)^2 + Trace(A4)^2 + Trace(A1)*Trace(A2)*Trace(A3)*Trace(A4))]; 
+end function; 
+
+
+
+function Sig4(Tup);
+error if #Tup ne 4, "Tuple is not length 4";
+error if exists(i){i: i in [1..#Tup] | Determinant(Tup[i]) ne 1}, "Tuple is not in SL \o", Tup;
+A1 := Tup[1]; A2 := Tup[2]; A3 := Tup[3]; A4 := Tup[4];
+return [Trace(A1), Trace(A2), Trace(A3), Trace(A4), Trace(A1*A2), Trace(A2*A3), Trace(A1*A3), Trace(A2*A4)];
+end function;
+
+/* Signature formula used for MCG-finite 4-tuples in the paper by Tykhyy (2022) */
+function Sig4T(Tup);
+error if #Tup ne 4, "Tuple is not length 4";
+error if exists(i){i: i in [1..#Tup] | Determinant(Tup[i]) ne 1}, "Tuple is not in SL \o", Tup;
+A1 := Tup[1]; A2 := Tup[2]; A3 := Tup[3]; A4 := Tup[4];
+return [Trace(A1), Trace(A2), Trace(A3), Trace(A4), Trace(A1*A2), Trace(A2*A3), Trace(A1*A3), Trace(A2*A4)];
+end function;
+
+
+/* with Signatures */
+function BG4_Orbit(Tup: Sigs := false);
+Signatures := {Sig4(Tup)};
+To_Test := {Tup};
+Tested := {};
+t := Cputime();
+while To_Test ne Tested do;
+for x in To_Test diff Tested do;
+s1 := B1(x); 
+s2 := B2(x);
+s3 := B3(x);
+if Sig4(s1) notin Signatures then;
+Include(~To_Test, s1); Include(~Signatures, Sig4(s1)); end if;
+if Sig4(s2) notin Signatures then;
+Include(~To_Test, s2); Include(~Signatures, Sig4(s2)); end if;
+if Sig4(s3) notin Signatures then;
+Include(~To_Test, s3); Include(~Signatures, Sig4(s3)); end if;
+error if exists(u){u: u in To_Test | Sig4(u) notin Signatures}, "Something in To_Test is missing from Signatures";
+Include(~Tested, x);
+error if exists(u, v){[u, v]: u, v in Tested| Sig4(u) eq Sig4(v) and u ne v}, "Double counting a tuple with same signature";
+end for; 
+printf "Size of To_Test is %o, computation time so far: %o \n", #To_Test, Cputime(t);
+end while;
+if Sigs eq false then;
+return Tested;
+else; 
+return Tested, Signatures;
+end if;
+end function;
+
+
+/* The next three functions just computer the signatures for different 'equivalence' relations used in Tykhyy(2022) so we can manually or using computer check if they match the residues of our tuple */
+
+function Comp_Minus(Tup);
+SetInd := { x: x in [1..#Tup]}; 
+S := [Subsets(SetInd, k): k in [1..#Tup]| IsEven(k)];
+SubInd := &join S; 
+All_Tup := {@Tup@}; 
+error if exists(i){i: i in [1..#Tup] | Determinant(Tup[i]) ne 1}, "Tuple is not in SL \o", i;
+for s in SubInd do;
+sTup := Tup;
+for t in s do;
+sTup[t] := -Tup[t]; 
+end for;
+Include(~All_Tup, sTup);
+end for;
+return All_Tup;
+end function;
+
+
+function CM_Comp4(Tup); /* minuses and complex conjugates of the product traces */
+All_Tup := Comp_Minus(Tup);
+All_Res := {@ Res(Sig4T(t)): t in All_Tup@};
+M_Res := {@ Res(Sig4T(t)): t in All_Tup@};
+for m in M_Res do; 
+cRes := [ComplexConjugate(m[i]): i in [#Tup+1..#m]];
+mRes := m[1..#Tup] cat cRes;
+Include(~All_Res, mRes);
+end for;
+return All_Res;
+end function;
+
+
+function Comp_All4(Tup);
+RevTup := Reverse(Tup);
+RevInvTup := [RevTup[i]^-1: i in [1..#RevTup]];
+Rotated_Tups := {@ Rotate(Tup, p): p in [1..#Tup]@};
+Rotated_CMs := {@ CM_Comp4(x): x in Rotated_Tups@};
+Orig_CM := CM_Comp4(Tup);
+Rev_CM := CM_Comp4(RevInvTup);
+return Orig_CM join Rev_CM join &join Rotated_CMs;
+end function;
+
+/* removes redundant tuples so makes it slightly easier to read */
+function TComp4(Set);
+return &join{@ Comp_All4(x): x in Set@};
+end function; 
+
+
+
+
+/* CODE FOR COMPARING OUR MCG-FINITE 5-TUPLES TO THAT OF TYKHYY(2022) */
+
+
+function Sig5(Tup);
+error if #Tup ne 5, "Tuple is not length 5";
+error if exists(i){i: i in [1..#Tup] | Determinant(Tup[i]) ne 1}, "Tuple is not in SL \o", Tup;
+A1 := Tup[1]; A2 := Tup[2]; A3 := Tup[3]; A4 := Tup[4]; A5 := Tup[5];
+return [Trace(A1), Trace(A2), Trace(A3), Trace(A4), Trace(A1*A2), Trace(A1*A3), Trace(A1*A4), Trace(A2*A3), Trace(A2*A4), Trace(A3*A4), Trace(A1*A2*A3), Trace(A1*A2*A4), Trace(A1*A3*A4), Trace(A2*A3*A4), Trace(A5)];
+end function;
+
+
+/* Signature formula used for MCG-finite 5-tuples in the paper by Tykhyy (2022) */
+function Sig5T(Tup);
+error if #Tup ne 5, "Tuple is not length 5";
+error if exists(i){i: i in [1..#Tup] | Determinant(Tup[i]) ne 1}, "Tuple is not in SL \o", Tup;
+A1 := Tup[1]; A2 := Tup[2]; A3 := Tup[3]; A4 := Tup[4]; A5 := Tup[5];
+return [Trace(A1), Trace(A2), Trace(A3), Trace(A4), Trace(A5), Trace(A1*A2), Trace(A2*A3), Trace(A3*A4), Trace(A4*A5), Trace(A5*A1), Trace(A1*A3), Trace(A2*A4)];
+end function;
+
+
+/* The next three functions just computer the signatures for different 'equivalence' relations used in Tykhyy(2022) so we can manually or using computer check if they match the residues of our tuple */
+
+function Comp_Minus(Tup);
+SetInd := { x: x in [1..#Tup]}; 
+S := [Subsets(SetInd, k): k in [1..#Tup]| IsEven(k)];
+SubInd := &join S; 
+All_Tup := {@Tup@}; 
+error if exists(i){i: i in [1..#Tup] | Determinant(Tup[i]) ne 1}, "Tuple is not in SL \o", i;
+for s in SubInd do;
+sTup := Tup;
+for t in s do;
+sTup[t] := -Tup[t]; 
+end for;
+Include(~All_Tup, sTup);
+end for;
+return All_Tup;
+end function;
+
+function CM_Comp5(Tup); /* minuses and complex conjugates of the product traces */
+All_Tup := Comp_Minus(Tup);
+All_Res := {@ Res(Sig5T(t)): t in All_Tup@};
+M_Res := {@ Res(Sig5T(t)): t in All_Tup@};
+for m in M_Res do; 
+cRes := [ComplexConjugate(m[i]): i in [#Tup+1..#m]];
+mRes := m[1..#Tup] cat cRes;
+Include(~All_Res, mRes);
+end for;
+return All_Res;
+end function;
+
+function Comp_All5(Tup);
+RevTup := Reverse(Tup);
+RevInvTup := [RevTup[i]^-1: i in [1..#RevTup]];
+Rotated_Tups := {@ Rotate(Tup, p): p in [1..#Tup]@};
+Rotated_CMs := {@ CM_Comp5(x): x in Rotated_Tups@};
+Orig_CM := CM_Comp5(Tup);
+Rev_CM := CM_Comp5(RevInvTup);
+return Orig_CM join Rev_CM join &join Rotated_CMs;
+end function;
+
+
+
+/* with Signatures */
+function BG5_Orbit(Tup: Sigs := false);
+Signatures := {Sig5(Tup)};
+To_Test := {Tup};
+Tested := {};
+t := Cputime();
+while To_Test ne Tested do;
+for x in To_Test diff Tested do;
+s1 := B1(x); 
+s2 := B2(x);
+s3 := B3(x);
+s4 := B4(x);
+if Sig5(s1) notin Signatures then;
+Include(~To_Test, s1); Include(~Signatures, Sig5(s1)); end if;
+if Sig5(s2) notin Signatures then;
+Include(~To_Test, s2); Include(~Signatures, Sig5(s2)); end if;
+if Sig5(s3) notin Signatures then;
+Include(~To_Test, s3); Include(~Signatures, Sig5(s3)); end if;
+if Sig5(s4) notin Signatures then;
+Include(~To_Test, s4); Include(~Signatures, Sig5(s4)); end if;
+error if exists(u){u: u in To_Test | Sig5(u) notin Signatures}, "Something in To_Test is missing from Signatures";
+Include(~Tested, x);
+error if exists(u, v){[u, v]: u, v in Tested| Sig5(u) eq Sig5(v) and u ne v}, "Double counting a tuple with same signature";
+end for; 
+printf "Size of To_Test is %o, computation time so far: %o \n", #To_Test, Cputime(t);
+end while;
+if Sigs eq false then;
+return Tested;
+else; 
+return Tested, Signatures;
+end if;
+end function;
+
+
+/* with Signatures and Tykhyy's Equivalence Relation Signatures: this allows us to attempt to compare with Tykhyy's signatures without computing the full braid group orbit of our tuple first as it prints the equivalent signatures for every new element of the orbit as it is computed*/
+function BG5_OrbitT(Tup: Sigs := false);
+Signatures := {Sig5(Tup)};
+To_Test := {Tup};
+Tested := {};
+t := Cputime();
+while To_Test ne Tested do;
+for x in To_Test diff Tested do;
+s1 := B1(x); 
+s2 := B2(x);
+s3 := B3(x);
+s4 := B4(x);
+if Sig5(s1) notin Signatures then;
+Include(~To_Test, s1); Include(~Signatures, Sig5(s1)); print Comp_All5(s1); end if;
+if Sig5(s2) notin Signatures then;
+Include(~To_Test, s2); Include(~Signatures, Sig5(s2)); print Comp_All5(s2); end if;
+if Sig5(s3) notin Signatures then;
+Include(~To_Test, s3); Include(~Signatures, Sig5(s3)); print Comp_All5(s3); end if;
+if Sig5(s4) notin Signatures then;
+Include(~To_Test, s4); Include(~Signatures, Sig5(s4)); print Comp_All5(s4); end if;
+error if exists(u){u: u in To_Test | Sig5(u) notin Signatures}, "Something in To_Test is missing from Signatures";
+Include(~Tested, x);
+error if exists(u, v){[u, v]: u, v in Tested| Sig5(u) eq Sig5(v) and u ne v}, "Double counting a tuple with same signature";
+end for; 
+printf "Size of To_Test is %o, computation time so far: %o \n", #To_Test, Cputime(t);
+end while;
+if Sigs eq false then;
+return Tested;
+else; 
+return Tested, Signatures;
+end if;
+end function;
+
+
+
+
+
+
+
+
+

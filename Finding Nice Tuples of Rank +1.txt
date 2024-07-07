@@ -1,0 +1,43 @@
+
+
+Prod := function(x);
+ return &*x; end function;
+
+/* This function checks if the product of a tuple satisfies the eigenvalue condition */
+P := function(X, k: A := {1}, Q := X[1]);
+error if Q notin X, "Q is not in X";
+Y := Exclude(X, Q); G := Sym(SetToIndexedSet(Seqset(Y))); /* just to reduce permutations checked*/
+if exists(g){g: g in G| exists(s){s : s in Eigenvalues(Q*Prod(Eltseq(g)))|s[1] notin A and 
+s[2] eq k }} then;
+ return true, [Q] cat Eltseq(g); /* sequence returned is the order to take the product in */ 
+ else return false, _;
+ end if;
+ end function;
+
+function Sub_Order(W, x); 
+G := sub<W | x>;
+return #G; 
+end function;
+
+function Conj_Classes(W); 
+s := 0;
+Q := [W.1];
+repeat s := s + 1; 
+if exists(q){q: q in W| IsReflection(q) and forall(w){w: w in Q | not IsConjugate(W, q, w)}} then; 
+Append(~Q, q); 
+s := 0;
+end if;
+until s eq 1;
+return Q;
+end function;
+
+function Fix_M(W: T := Rank(W) + 1, Q := [W.1]);
+i := 0; 
+Total := {};
+repeat i := i + 1; 
+X := Subsets(IndexedSetToSet(&join{Class(W, q) : q in Q[i..#Q]} diff Seqset(Q[1..i])), T-1);
+X_1 :=  &join{{{Q[i]} join x} : x in X}; 
+Total := Total join X_1; /*X_1 should be subsets containing elements from Q[i]-th conjugacy class rep in each set but not any elements from j-th conj class for j < i */
+until i eq #Q; 
+return SetToIndexedSet(Total);
+end function;

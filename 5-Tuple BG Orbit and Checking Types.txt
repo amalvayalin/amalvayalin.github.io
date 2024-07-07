@@ -1,0 +1,136 @@
+
+/* Returns a tuple of the nontrivial eigenvalue of a tuple of reflections */
+function Get_Det(v);
+return [Determinant(v[i]) : i in [1..#v] ]; /* det only gives eigv if v is tuple of pseudo reflections */
+end function;
+
+/* Given the T-tuple in GLn(C) and a character returns the (T+1)-tuple in SLn(C) that multiplies to the identity */
+function Into_SL(Char, Tup);
+error if #Char ne #Tup + 1, "Character tuple is not one more than the matrix tuple";
+error if Prod(Char) ne 1, "Character tuple does not multiply to 1";
+return [Char[i]*Tup[i]: i in [1..#Tup]] cat [Char[#Char]*Prod(Tup)^-1];
+end function;
+
+function Sig5(Tup);
+error if #Tup ne 5, "Tuple is not length 5";
+error if exists(i){i: i in [1..#Tup] | Determinant(Tup[i]) ne 1}, "Tuple is not in SL \o", Tup;
+A1 := Tup[1]; A2 := Tup[2]; A3 := Tup[3]; A4 := Tup[4]; A5 := Tup[5];
+return [Trace(A1), Trace(A2), Trace(A3), Trace(A4), Trace(A1*A2), Trace(A1*A3), Trace(A1*A4), Trace(A2*A3), Trace(A2*A4), Trace(A3*A4), Trace(A1*A2*A3), Trace(A1*A2*A4), Trace(A1*A3*A4), Trace(A2*A3*A4), Trace(A5)];
+end function;
+
+function B1(Tup);
+error if #Tup lt 2, "Tuple is shorter than length 2";
+TupCopy := Tup;
+A1 := Tup[1]; A2 := Tup[2];
+TupCopy[1] := A1*A2*(A1)^-1;
+TupCopy[2] := A1;
+return TupCopy;
+end function;
+
+function B2(Tup);
+error if #Tup le 2, "Tuple is shorter than length 3";
+TupCopy := Tup;
+A2 := Tup[2]; A3 := Tup[3];
+TupCopy[2] := A2*A3*(A2)^-1;
+TupCopy[3] := A2;
+return TupCopy;
+end function;
+
+function B3(Tup);
+error if #Tup le 3, "Tuple is shorter than length 4";
+TupCopy := Tup;
+A3 := Tup[3]; A4 := Tup[4];
+TupCopy[3] := A3*A4*(A3)^-1;
+TupCopy[4] := A3;
+return TupCopy;
+end function;
+
+function B4(Tup);
+error if #Tup le 4, "Tuple is shorter than length 5";
+TupCopy := Tup;
+A4 := Tup[4]; A5 := Tup[5];
+TupCopy[4] := A4*A5*(A4)^-1;
+TupCopy[5] := A4;
+return TupCopy;
+end function;
+
+function BG5_Orbit(Tup: Sigs := false);
+Signatures := {Sig5(Tup)};
+To_Test := {Tup};
+Tested := {};
+t := Cputime();
+while To_Test ne Tested do;
+for x in To_Test diff Tested do;
+s1 := B1(x); 
+s2 := B2(x);
+s3 := B3(x);
+s4 := B4(x);
+if Sig5(s1) notin Signatures then;
+Include(~To_Test, s1); Include(~Signatures, Sig5(s1)); end if;
+if Sig5(s2) notin Signatures then;
+Include(~To_Test, s2); Include(~Signatures, Sig5(s2)); end if;
+if Sig5(s3) notin Signatures then;
+Include(~To_Test, s3); Include(~Signatures, Sig5(s3)); end if;
+if Sig5(s4) notin Signatures then;
+Include(~To_Test, s4); Include(~Signatures, Sig5(s4)); end if;
+error if exists(u){u: u in To_Test | Sig5(u) notin Signatures}, "Something in To_Test is missing from Signatures";
+Include(~Tested, x);
+error if exists(u, v){[u, v]: u, v in Tested| Sig5(u) eq Sig5(v) and u ne v}, "Double counting a tuple with same signature";
+end for; 
+printf "Size of To_Test is %o, computation time so far: %o \n", #To_Test, Cputime(t);
+end while;
+if Sigs eq false then;
+return Tested;
+else; 
+return Tested, Signatures;
+end if;
+end function;
+
+/* Tuples of same type might have reflections in different orders so this function just rearranges the character in the correct order corresponding to the nontrivial eigenvalue so the tuple can be put into SL2 after middle convolution */
+
+function PairCharTup(Char, EigvEx, EigvAlt);
+NewChar := [];
+for j in [1..#EigvEx] do;
+NewChar[j] := Char[Index(EigvEx, EigvAlt[j])];
+end for; 
+return NewChar cat [Char[#Char]];
+end function;
+
+/* This function checks all tuples of the same type and the inverse of the tuple to make sure they do no produce new orbits. Note that this function computes the orbit of the Exemplar and if no new orbits are found will just return the orbit and signatures for the Exemplar */
+
+function Check_Type(W, l, Set, Char: Exemplar := Set[1]);
+MC_Ex := Compute_MC(W, l, Exemplar);
+SL_Ex := Into_SL(Char, MC_Ex);
+Orbit, Sigs := BG5_Orbit(SL_Ex: Sigs := true);
+Other_Orbs := {@@};
+Other_Orbs_Sigs := {@@};
+for i in [1..#Set] do; 
+Tup := Set[i];
+MC := Compute_MC(W, l, Tup);
+error if exists{i: i in [1..#Tup]| #Rows(MC[i]) ne 2}, "MC of tuple is not 2x2 %o \n ", MC; 
+print i;
+if Get_Det(Exemplar) ne Get_Det(Tup) then;
+NewChar := PairCharTup(Char, Get_Det(Exemplar), Get_Det(Tup));
+SLMC := Into_SL(NewChar, MC);
+else SLMC := Into_SL(Char, MC);
+end if;
+if Sig5(SLMC) notin Sigs then;
+Include(~Other_Orbs, Tup); Include(~Other_Orbs_Sigs, Sig5(SLMC));
+printf "found a new signature not in previous orbit, %o \n", Sig5(SLMC);
+end if; 
+end for; 
+SL := Sig5(SL_Ex);
+printf "Exemplar Sig is: %o \n", SL;
+Inv_Tup := [SL_Ex[4]^-1, SL_Ex[3]^-1, SL_Ex[2]^-1, SL_Ex[1]^-1, SL_Ex[5]^-1];
+Inv_Sig := Sig5(Inv_Tup);
+if Inv_Sig in Sigs then;
+print "Inverse of the exemplar is in the exemplar's orbit";
+else printf "Inverse of the exemplar may be a new orbit, has signature %o \n", Inv_Sig;
+end if;
+if #Other_Orbs_Sigs eq 0 then; 
+print "This Type does not split into multiple orbits \n";
+return SL, Sigs;
+else return Other_Orbs, Other_Orbs_Sigs; 
+end if;
+end function;
+
