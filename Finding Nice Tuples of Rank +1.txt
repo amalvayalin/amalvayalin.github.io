@@ -41,3 +41,47 @@ Total := Total join X_1; /*X_1 should be subsets containing elements from Q[i]-t
 until i eq #Q; 
 return SetToIndexedSet(Total);
 end function;
+
+
+/* Note: Below you have to manually change the interval of counting from 100 for small groups to 10000 for larger ones */
+
+function Find_All_Tuples(W, M: A := {1},  T := Rank(W) +1, Order := false); 
+if Order eq true then;
+FR := FreeGroup(T);
+printf "Base Ring of W: %o \n", BaseRing(W);
+X := {@@};
+printf "Number of tuples to check is %o \n", #M;
+error if #M lt 20000, "Numbers of tuples to check is less than 20000";
+j := 1; m := #M div 20000;
+t := Cputime();
+while j in [1..m+1] do; 
+M_1 := {@ M[i]: i in [(j-1)*20000 +1..Min(j*20000, #M)]  | IsIrreducible(GModule(FR, Setseq(M[i]))) and P(Setseq(M[i]), T-2: A := A) and Sub_Order(W,Setseq(M[i])) eq #W @};
+for m in M_1 do;
+u, v := P(Setseq(m), T-2: A := A); 
+Include(~X, v);
+end for;
+printf "Found %o new tuples \n", #M_1;
+printf "Checked upto index %o of %o, computation time so far: %o \n", Min(j*20000, #M), #M, Cputime(t); 
+j := j+1;
+end while;
+else; 
+FR := FreeGroup(T);
+printf "Base Ring of W: %o \n", BaseRing(W);
+X := {@@};
+printf "Number of tuples to check is %o \n", #M;
+error if #M lt 20000, "Numbers of tuples to check is less than 20000";
+j := 1; m := #M div 20000;
+t := Cputime();
+while j in [1..m+1] do; 
+M_1 := {@ M[i]: i in [(j-1)*20000 +1..Min(j*20000, #M)]  | IsIrreducible(GModule(FR, Setseq(M[i]))) and P(Setseq(M[i]), T-2: A := A) @};
+for m in M_1 do;
+u, v := P(Setseq(m), T-2: A := A); 
+Include(~X, v);
+end for;
+printf "Found %o new tuples \n", #M_1;
+printf "Checked upto index %o of %o, computation time so far: %o \n", Min(j*20000, #M), #M, Cputime(t); 
+j := j+1;
+end while;
+end if;
+return X;
+end function; 
